@@ -3,6 +3,7 @@ import Search from './components/Search'
 import Spinner from './components/Spinner';
 import MovieCard from './components/MovieCard';
 import {useDebounce} from 'react-use'
+import { updateSearchCount } from './appwrite.js';
 
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 
@@ -24,6 +25,10 @@ const App = () => {
   const [isLoading,setIsLoading] = useState(false);
   const [debouncedSearchTerm,setDebouncedSearchTerm] = useState('');
 
+  useEffect(() => {
+    console.log('API Key loaded:', API_KEY ? 'Yes' : 'No');
+  }, []);
+
   useDebounce(()=>setDebouncedSearchTerm(searchTerm),500,[searchTerm])
 
   const fetchMovies = async (query = '')=>{
@@ -34,20 +39,29 @@ const App = () => {
       ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`
       : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
 
-      const response = await fetch(endpoint,API_OPTIONS);
+      console.log('Fetching from endpoint:', endpoint);
+      console.log('With options:', API_OPTIONS);
 
-      if(!response){
-        throw new Error("Failed to fetch movies");
+      const response = await fetch(endpoint,API_OPTIONS);
+      console.log('Response status:', response.status);
+
+      if(!response.ok){
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
 
-      if(data.Response === 'False'){
-        setErrorMessage(data.Error || 'Failed to fetch movies');
+      if (!data.results) {
+        setErrorMessage('No results found');
         setMovieList([]);
         return;
       }
 
-      setMovieList(data.results || []);
+      setMovieList(data.results);
+
+      if(query && data.results.length > 0){
+        await updateSearchCount(query,data.results[0]);
+      }
+
     } catch (error) {
       console.error(`Error fetching movies: ${error}`);
       setErrorMessage('Error fetching movies.Please try again later.')
